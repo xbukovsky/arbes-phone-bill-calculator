@@ -6,10 +6,12 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
@@ -42,52 +44,63 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     V případě, že by výpis obsahoval dvě nebo více takových čísel, zpoplatněny nebudou hovory na číslo s aritmeticky nejvyšší hodnotou.
      */
     public BigDecimal calculate (String phoneLog) {
+        BigDecimal summary = new BigDecimal(0);
+
         String[] calls = phoneLog.split(",");
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
 
-        try {
-            Date callBegin = dateFormat.parse(calls[1]);
-            Date callEnd = dateFormat.parse(calls[2]);
-            long diff = callEnd.getTime() - callBegin.getTime();
+        LocalDateTime callBegin = LocalDateTime.parse(calls[1], formatter);
+        LocalDateTime callEnd = LocalDateTime.parse(calls[2], formatter);
 
-            long diffSeconds = diff / 1000 % 60;
-            long diffMinutes = diff / (60 * 1000) % 60;
-            long diffHours = diff / (60 * 60 * 1000) % 24;
-            long diffDays = diff / (24 * 60 * 60 * 1000);
+        long milliseconds = ChronoUnit.MILLIS.between(callBegin, callEnd);
+        long minutes = ChronoUnit.MINUTES.between(callBegin, callEnd);
+        long seconds = ChronoUnit.SECONDS.between(callBegin, callEnd);
 
-            if (diffMinutes >= 5 && diffSeconds > 0) {
-                // TODO resi bod 2, tedy hovory delsi nez 5 minut
-                // TODO neresi cas volani
-                // TODO prvnich 5 minut by se tedy resilo po starem, zbyle minuty by sly * 0.5
+        if (minutes >= 5 && (seconds - 300) > 0) {
+
+            long cheaperMinutes = minutes - 5;
+            if (seconds % 60 > 0) cheaperMinutes += 1;
+            LocalDateTime endTime = callBegin.plus(Duration.of(5, ChronoUnit.MINUTES));
+
+            // TODO resi bod 2, tedy hovory delsi nez 5 minut
+            // TODO neresi cas volani
+            // TODO prvnich 5 minut by se tedy resilo po starem, zbyle minuty by sly * 0.2
 
 
-            } else {
-                // TODO resi
+        } else {
+            // TODO resi
 
+            // TODO zde se resi 4 varianty -- 1) zapocne a skonci mimo hlavni tarif ++
+            //  2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
+
+            summary.add(new BigDecimal(sum));
+
+            // Nic jineho me nezajima, pak je tam delsi casove rozpeti, coz uz se pocita se slevou vyse
+            if ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) { // levna sazba mimo hlavni hodiny za 0.5
+                // todo lze zde rovnou pouzit return
+                double sum = (callBegin.getSecond() < callEnd.getSecond() ? (minutes+1 * 0.5) : (minutes * 0.5));
+            } else if((callBegin.getHour() >= 8) || (callEnd.getHour() < 16)) { // draha sazba za 1
+                double sum = (callBegin.getSecond() < callEnd.getSecond() ? (minutes+1) : minutes);
+            } else if((callBegin.getHour() == 7) && (callEnd.getHour() == 8)) { // specificke pripady, okrajove hodnoty
+                long minutesBegin = 60 - callBegin.getMinute(); //7:57:25
+                long minutesEnd = callEnd.getMinute(); // 8:03:42 --> 7 minut
+                double sum = minutesBegin * 0.5;
+                sum += (callBegin.getSecond() < callEnd.getSecond()) ? minutesEnd+1 : minutesEnd;
+            } else if((callBegin.getHour() == 15) && (callEnd.getHour() == 16)) { // specificke pripady, okrajove hodnoty
+                long minutesBegin = 60 - callBegin.getMinute(); //15:57:25
+                long minutesEnd = callEnd.getMinute(); // 16:03:42 --> 7 minut
+                double sum = minutesBegin;
+                sum += (callBegin.getSecond() < callEnd.getSecond()) ? (minutesEnd+1 * 0.5) : (minutesEnd * 0.5);
             }
 
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
-            LocalDateTime cBegin = LocalDateTime.parse(calls[1], formatter);
-
-            System.out.println(cBegin.toString());
-            System.out.println(cBegin.getHour());
-
-//            System.out.println(callBegin.getTime());
-//            System.out.println(callBegin.toString());
-//            System.out.println(callBegin.);
-
-            System.out.println(diff);
-            System.out.print(diffDays + " days, ");
-            System.out.print(diffHours + " hours, ");
-            System.out.print(diffMinutes + " minutes, ");
-            System.out.print(diffSeconds + " seconds.");
-            System.out.println("\n \n");
-
-
-
-        } catch(ParseException e) {
-            e.printStackTrace();
         }
+
+        System.out.println(milliseconds);
+        System.out.println(minutes);
+        System.out.println(seconds);
+        System.out.println("BEFORE GET HOUR AND SECOND");
+        System.out.println(callBegin.getHour());
+        System.out.println(callBegin.getSecond());
 
         return new BigDecimal(123456);
     }
