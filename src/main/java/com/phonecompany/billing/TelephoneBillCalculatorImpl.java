@@ -6,6 +6,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.chrono.ChronoLocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
 public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
@@ -51,12 +55,35 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             long diffHours = diff / (60 * 60 * 1000) % 24;
             long diffDays = diff / (24 * 60 * 60 * 1000);
 
+            if (diffMinutes >= 5 && diffSeconds > 0) {
+                // TODO resi bod 2, tedy hovory delsi nez 5 minut
+                // TODO neresi cas volani
+                // TODO prvnich 5 minut by se tedy resilo po starem, zbyle minuty by sly * 0.5
+
+
+            } else {
+                // TODO resi
+
+            }
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+            LocalDateTime cBegin = LocalDateTime.parse(calls[1], formatter);
+
+            System.out.println(cBegin.toString());
+            System.out.println(cBegin.getHour());
+
+//            System.out.println(callBegin.getTime());
+//            System.out.println(callBegin.toString());
+//            System.out.println(callBegin.);
+
             System.out.println(diff);
             System.out.print(diffDays + " days, ");
             System.out.print(diffHours + " hours, ");
             System.out.print(diffMinutes + " minutes, ");
             System.out.print(diffSeconds + " seconds.");
             System.out.println("\n \n");
+
+
 
         } catch(ParseException e) {
             e.printStackTrace();
