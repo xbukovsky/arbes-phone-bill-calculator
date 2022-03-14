@@ -24,8 +24,11 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
         Příklad obsahu souboru:
         420774577453,13-01-2020 18:10:15,13-01-2020 18:12:57 --> 3 minuty po 0.5 --> 1.5
         420776562353,18-01-2020 08:59:20,18-01-2020 09:01:00 --> 2 minuta po 1 --> 2
-        420776562353,19-01-2020 08:59:20,20-01-2020 09:10:00 --> 5 minut po 1 + 6 minut po 0.2 --> 6.2 (TOHLE VYCHAZI)
-        420776562353,27-01-2020 04:59:20,27-01-2020 05:10:00 --> 5 minut po 0.5 + 6 minut po 0.2 --> 2.5 + 1.2 = 3.7 (TOHLE VYCHAZI)
+        420776562353,19-01-2020 08:59:20,20-01-2020 09:10:00 --> SILENA SUMA, jsou to rozdilne dny!
+        420776562353,19-01-2020 08:59:20,19-01-2020 09:10:00 --> 5 minut po 1 + 6 minut po 0.2 --> 6.2
+        420776562353,27-01-2020 04:59:20,27-01-2020 05:10:00 --> 5 minut po 0.5 + 6 minut po 0.2 --> 2.5 + 1.2 = 3.7
+        420776562353,27-01-2020 07:57:25,27-01-2020 08:03:42 --> 3 minuty po 0.5 + 2 minuty po 1 + 2 minuty po 0.2 --> 3.9
+        420776562353,27-01-2020 15:57:25,27-01-2020 16:01:42 --> 3 minuty po 1 + 2 minuty po 0.5 --> 4.0
 
         Výstupem metody je částka k uhrazení spočtena dle vstupního výpisu dle následujících pravidel:
     • Minutová sazba v intervalu <8:00:00,16:00:00) je zpoplatněna 1 Kč za každou započatou minutu.
@@ -39,22 +42,33 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     V případě, že by výpis obsahoval dvě nebo více takových čísel, zpoplatněny nebudou hovory na číslo s aritmeticky nejvyšší hodnotou.
      */
 
-    // TODO tohle jeste upravit, jednou pouzivat minutes a podruhe sahat na minutesEnd () --> nelze to udelat jednoduseji?
+    // TODO tohle jeste upravit, jednou pouzivat minutes a podruhe sahat na minutesEnd () --> nelze to udelat jednoduseji? --> prvne specificke pripady
     private double getBasicSumOfBill(LocalDateTime callBegin, LocalDateTime callEnd, long minutes) {
-        if ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) { // levna sazba mimo hlavni hodiny za 0.5
-            return (callBegin.getSecond() < callEnd.getSecond() ? (minutes+1 * 0.5) : (minutes * 0.5));
-        } else if((callBegin.getHour() >= 8) || (callEnd.getHour() < 16)) { // draha sazba za 1
-            return (callBegin.getSecond() < callEnd.getSecond() ? (minutes+1) : minutes);
-        } else { // specificke pripady, okrajove hodnoty
+        if (((callBegin.getHour() == 7) && (callEnd.getHour() == 8)) || ((callBegin.getHour() == 15) && (callEnd.getHour() == 16))) { // specificke pripady, okrajove hodnoty
+            double tax = callBegin.getHour() == 7 ? 0.5 : 1;
             long minutesBegin = 60 - callBegin.getMinute(); //BEGIN 7:57:25 NEBO 15:57:25 --- END --- 8:03:42 --> 7 minut NEBO 16:03:42 --> 7 minut
+            double secondTax = tax == 0.5 ? 1 : 0.5;
+            long minutesEnd = minutes - minutesBegin;
 
-            if ((callBegin.getHour() == 7) && (callEnd.getHour() == 8)) {
-                return (minutesBegin * 0.5) + ((callBegin.getSecond() < callEnd.getSecond()) ? callEnd.getMinute()+1 : callEnd.getMinute());
-            } else if ((callBegin.getHour() == 15) && (callEnd.getHour() == 16)) {
-                return minutesBegin + ((callBegin.getSecond() < callEnd.getSecond()) ? (callEnd.getMinute()+1 * 0.5) : (callEnd.getMinute() * 0.5));
-            } else {
-                return 0.0;
-            }
+            //         420776562353,27-01-2020 07:57:25,27-01-2020 08:03:42 --> 3 minuty po 0.5 + 2 minuty po 1 + 2 minuty po 0.2 --> 3.9
+            //        420776562353,27-01-2020 15:57:25,27-01-2020 16:01:42 --> 3 minuty po 1 + 2 minuty po 0.5 --> 4.0
+
+            System.out.println("MINUTES:: " + minutes);
+
+            System.out.println(tax);
+            System.out.println(secondTax);
+            System.out.println(minutesBegin);
+            System.out.println(minutesEnd);
+
+            System.out.println("FIRST IF " + minutes);
+
+            return (minutesBegin * tax) + (minutesEnd * secondTax);
+
+//            return (minutesBegin * tax) + ((callBegin.getSecond() < callEnd.getSecond()) ? callEnd.getMinute()+1 * tax : callEnd.getMinute() * tax);
+        } else {
+            double tax = ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) ? 0.5 : 1;
+            System.out.println("SECOND IF with tax " + minutes * tax);
+            return minutes * tax;
         }
     }
 
@@ -70,30 +84,29 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
         long minutes = ChronoUnit.MINUTES.between(callBegin, callEnd);
         long seconds = ChronoUnit.SECONDS.between(callBegin, callEnd);
 
-        minutes += (callBegin.getSecond() < callEnd.getSecond() ? 1 : 0); // TODO updated!
+        if (seconds > 300) {
+            // resi bod 2, tedy hovory delsi nez 5 minut
 
-        System.out.println(callBegin.toString());
-        System.out.println(callEnd.toString());
-        System.out.println(callBegin.getSecond() < callEnd.getSecond());
+            System.out.println("first");
+            // TODO tady blbe pocitam ty minuty
 
-        if (minutes >= 5 && (seconds - 300) > 0) {
-            // TODO resi bod 2, tedy hovory delsi nez 5 minut
-
-            long cheaperMinutes = minutes - 5;
-            if (seconds % 60 > 0) cheaperMinutes += 1; // TODO tohle je zde ted k cemu?
-            LocalDateTime updatedCallEnd = callBegin.plus(Duration.of(300, ChronoUnit.SECONDS));
+            long cheaperSeconds = seconds - 300;
+            LocalDateTime updatedCallEnd = callBegin.plus(Duration.of(301, ChronoUnit.SECONDS));
 
             // TODO zde se tam pricita jeste 1 minuta navic, nebude to delat problem v pripade minutes = 5?
+            int mins = (int) (cheaperSeconds / 60.0);
             sum = getBasicSumOfBill(callBegin, updatedCallEnd, 5);
-            sum += cheaperMinutes * 0.2;
+            sum += (cheaperSeconds % 60 > 0 ? mins+1 : mins) * 0.2;
         } else {
             // TODO 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
             // Nic jineho me nezajima, pak je tam delsi casove rozpeti, coz uz se pocita se slevou vyse
 
-            System.out.println("minutes");
-            System.out.println(minutes);
+            System.out.println("second");
 
-            sum = getBasicSumOfBill(callBegin, callEnd, minutes);
+            int mins = (int) (seconds / 60.0);
+            mins = (seconds % 60 > 0 ? mins+1 : mins);
+
+            sum = getBasicSumOfBill(callBegin, callEnd, mins);
         }
 
         System.out.println(sum);
