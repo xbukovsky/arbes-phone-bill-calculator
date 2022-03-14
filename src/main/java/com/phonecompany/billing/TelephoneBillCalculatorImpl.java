@@ -50,21 +50,10 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             double secondTax = tax == 0.5 ? 1 : 0.5;
             long minutesEnd = minutes - minutesBegin;
 
-            //         420776562353,27-01-2020 07:57:25,27-01-2020 08:03:42 --> 3 minuty po 0.5 + 2 minuty po 1 + 2 minuty po 0.2 --> 3.9
-            //        420776562353,27-01-2020 15:57:25,27-01-2020 16:01:42 --> 3 minuty po 1 + 2 minuty po 0.5 --> 4.0
-
-            System.out.println("MINUTES:: " + minutes);
-
-            System.out.println(tax);
-            System.out.println(secondTax);
-            System.out.println(minutesBegin);
-            System.out.println(minutesEnd);
-
             System.out.println("FIRST IF " + minutes);
 
             return (minutesBegin * tax) + (minutesEnd * secondTax);
 
-//            return (minutesBegin * tax) + ((callBegin.getSecond() < callEnd.getSecond()) ? callEnd.getMinute()+1 * tax : callEnd.getMinute() * tax);
         } else {
             double tax = ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) ? 0.5 : 1;
             System.out.println("SECOND IF with tax " + minutes * tax);
@@ -84,23 +73,16 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
         long minutes = ChronoUnit.MINUTES.between(callBegin, callEnd);
         long seconds = ChronoUnit.SECONDS.between(callBegin, callEnd);
 
-        if (seconds > 300) {
-            // resi bod 2, tedy hovory delsi nez 5 minut
-
+        if (seconds > 300) { // resi bod 2, tedy hovory s delsim casovym rozpetim nez 5 minut a se slevou
             System.out.println("first");
-            // TODO tady blbe pocitam ty minuty
 
             long cheaperSeconds = seconds - 300;
             LocalDateTime updatedCallEnd = callBegin.plus(Duration.of(301, ChronoUnit.SECONDS));
 
-            // TODO zde se tam pricita jeste 1 minuta navic, nebude to delat problem v pripade minutes = 5?
             int mins = (int) (cheaperSeconds / 60.0);
             sum = getBasicSumOfBill(callBegin, updatedCallEnd, 5);
             sum += (cheaperSeconds % 60 > 0 ? mins+1 : mins) * 0.2;
-        } else {
-            // TODO 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
-            // Nic jineho me nezajima, pak je tam delsi casove rozpeti, coz uz se pocita se slevou vyse
-
+        } else { // 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
             System.out.println("second");
 
             int mins = (int) (seconds / 60.0);
