@@ -61,8 +61,22 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     private final Map<String, BigDecimal[]> listOfTelephones;
     private String phoneWithHighestNumberOfCalls;
 
+    public TelephoneBillCalculatorImpl() {
+        listOfTelephones = new HashMap<>();
+    }
+
     public TelephoneBillCalculatorImpl(HashMap<String, BigDecimal[]> map) {
         listOfTelephones = map;
+    }
+
+    // Za ucelem testu
+    public String getPhoneWithHighestNumberOfCalls() {
+        return phoneWithHighestNumberOfCalls;
+    }
+
+    // Za ucelem testu
+    public Map<String, BigDecimal[]> getListOfTelephones() {
+        return listOfTelephones;
     }
 
     // 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
@@ -115,6 +129,7 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             this.listOfTelephones.put(calls[0], callInfo);
             this.phoneWithHighestNumberOfCalls = (this.phoneWithHighestNumberOfCalls == null) ? calls[0] : this.phoneWithHighestNumberOfCalls;
         } else {
+            // Alternative Map<String, BigDecimal[]> maxEntry = this.listOfTelephones.entrySet().stream().max((String e1, BigDecimal[] e2) -> e2[0].getValue().compareTo(e2[1].getValue()));
             BigDecimal[] callInfo = this.listOfTelephones.get(calls[0]);
             BigDecimal[] highestNumOfCallsInfo = this.listOfTelephones.get(this.phoneWithHighestNumberOfCalls);
             callInfo[0] = callInfo[0].add(new BigDecimal(1));
