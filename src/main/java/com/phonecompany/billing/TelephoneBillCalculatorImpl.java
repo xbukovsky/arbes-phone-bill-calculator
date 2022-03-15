@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,35 +53,35 @@ import java.util.Map;
  */
 
 public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
-    public static final double BASIC_CALL_TAX = 1;
-    public static final double OUT_OF_BASIC_INTERVAL_CALL_TAX = 0.5;
-    public static final double MORE_THAN_FIVE_MINUTES_CALL_TAX = 0.2;
+    public static final BigDecimal BASIC_CALL_TAX = BigDecimal.valueOf(1);
+    public static final BigDecimal OUT_OF_BASIC_INTERVAL_CALL_TAX = BigDecimal.valueOf(0.5);
+    public static final BigDecimal MORE_THAN_FIVE_MINUTES_CALL_TAX = BigDecimal.valueOf(0.2);
 
-    // listOfTelephones --> String s telefonnim cislem + double[] array, kde v [0] je pocet hovoru a v [1] je suma za hovory
-    private final Map<String, double[]> listOfTelephones;
+    // listOfTelephones --> String s telefonnim cislem + BigDecimal[] array, kde v [0] je pocet hovoru a v [1] je suma za hovory
+    private final Map<String, BigDecimal[]> listOfTelephones;
     private String phoneWithHighestNumberOfCalls;
 
-    public TelephoneBillCalculatorImpl(HashMap<String, double[]> map) {
+    public TelephoneBillCalculatorImpl(HashMap<String, BigDecimal[]> map) {
         listOfTelephones = map;
     }
 
     // 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
-    private double getBasicSumOfBill(LocalDateTime callBegin, LocalDateTime callEnd, long minutes) {
+    private BigDecimal getBasicSumOfBill(LocalDateTime callBegin, LocalDateTime callEnd, long minutes) {
         if (((callBegin.getHour() == 7) && (callEnd.getHour() == 8)) || ((callBegin.getHour() == 15) && (callEnd.getHour() == 16))) { // specificke pripady, okrajove hodnoty
-            double tax = callBegin.getHour() == 7 ? OUT_OF_BASIC_INTERVAL_CALL_TAX : BASIC_CALL_TAX;
+            BigDecimal tax = callBegin.getHour() == 7 ? OUT_OF_BASIC_INTERVAL_CALL_TAX : BASIC_CALL_TAX;
             long minutesBegin = 60 - callBegin.getMinute();
-            double secondTax = (tax == OUT_OF_BASIC_INTERVAL_CALL_TAX) ? BASIC_CALL_TAX : OUT_OF_BASIC_INTERVAL_CALL_TAX;
+            BigDecimal secondTax = (tax == OUT_OF_BASIC_INTERVAL_CALL_TAX) ? BASIC_CALL_TAX : OUT_OF_BASIC_INTERVAL_CALL_TAX;
             long minutesEnd = minutes - minutesBegin;
 
-            return (minutesBegin * tax) + (minutesEnd * secondTax);
+            return tax.multiply(BigDecimal.valueOf(minutesBegin)).add(secondTax.multiply(BigDecimal.valueOf(minutesEnd)));
         } else {
-            double tax = ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) ? OUT_OF_BASIC_INTERVAL_CALL_TAX : BASIC_CALL_TAX;
-            return minutes * tax;
+            BigDecimal tax = ((callEnd.getHour() < 8) || (callBegin.getHour() > 16)) ? OUT_OF_BASIC_INTERVAL_CALL_TAX : BASIC_CALL_TAX;
+            return tax.multiply(BigDecimal.valueOf(minutes));
         }
     }
 
     public BigDecimal calculate (String phoneLog) {
-        double sum;
+        BigDecimal sum;
 
         String[] calls = phoneLog.split(",");
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
@@ -96,8 +97,9 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             LocalDateTime updatedCallEnd = callBegin.plus(Duration.of(301, ChronoUnit.SECONDS));
 
             int minutes = (int) (cheaperSeconds / 60.0);
+            BigDecimal finalMinutes = new BigDecimal(cheaperSeconds % 60 > 0 ? minutes+1 : minutes);
             sum = getBasicSumOfBill(callBegin, updatedCallEnd, 5);
-            sum += (cheaperSeconds % 60 > 0 ? minutes+1 : minutes) * MORE_THAN_FIVE_MINUTES_CALL_TAX;
+            sum = sum.add(MORE_THAN_FIVE_MINUTES_CALL_TAX.multiply(finalMinutes));
         } else {
             int minutes = (int) (seconds / 60.0);
             minutes = (seconds % 60 > 0 ? minutes+1 : minutes);
@@ -109,34 +111,34 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
         // uchovavat si i v globalni promene i cislo telefonu a maximalni hodnotu jeho sumy? --> neradi se dle sumy, ale dle poctu volani. Prvni if tedy pouze inicializuje prvni volane cislo.
         // porovnavat tedy pouze pocet hovoru a v pripade, ze bude pocet hovoru stejny, tak zohlednit aritmeticky nejvyssi hodnotu
         if (this.listOfTelephones.get(calls[0]) == null) {
-            double[] callInfo = {1.0, sum};
+            BigDecimal[] callInfo = {new BigDecimal(1), sum};
             this.listOfTelephones.put(calls[0], callInfo);
             this.phoneWithHighestNumberOfCalls = (this.phoneWithHighestNumberOfCalls == null) ? calls[0] : this.phoneWithHighestNumberOfCalls;
         } else {
-            double[] callInfo = this.listOfTelephones.get(calls[0]);
-            double[] highestNumOfCallsInfo = this.listOfTelephones.get(this.phoneWithHighestNumberOfCalls);
-            callInfo[0] += 1;
-            callInfo[1] += sum;
+            BigDecimal[] callInfo = this.listOfTelephones.get(calls[0]);
+            BigDecimal[] highestNumOfCallsInfo = this.listOfTelephones.get(this.phoneWithHighestNumberOfCalls);
+            callInfo[0] = callInfo[0].add(new BigDecimal(1));
+            callInfo[1] = callInfo[1].add(sum);
             this.listOfTelephones.put(calls[0], callInfo);
 
-            if ((int) highestNumOfCallsInfo[0] < (int) callInfo[0]) {
+            if (highestNumOfCallsInfo[0].intValue() < callInfo[0].intValue()) {
                 this.phoneWithHighestNumberOfCalls = calls[0];
-            } else if ((int) highestNumOfCallsInfo[0] == (int) callInfo[0]) { // stejny pocet hovoru, aritmeticky nejvyssi hodnota (castka/pocet_hovoru)
-                double oldCallArithmetic = highestNumOfCallsInfo[1] / highestNumOfCallsInfo[0];
-                double newCallArithmetic = callInfo[1] / callInfo[0];
-                this.phoneWithHighestNumberOfCalls = (Double.compare(oldCallArithmetic, newCallArithmetic) < 0) ? calls[0] : this.phoneWithHighestNumberOfCalls;
+            } else if (highestNumOfCallsInfo[0].intValue() == callInfo[0].intValue()) { // stejny pocet hovoru, aritmeticky nejvyssi hodnota (castka/pocet_hovoru)
+                BigDecimal oldCallArithmetic = highestNumOfCallsInfo[1].divide(highestNumOfCallsInfo[0], 3, RoundingMode.HALF_UP);
+                BigDecimal newCallArithmetic = callInfo[1].divide(callInfo[0], 3, RoundingMode.HALF_UP);
+                this.phoneWithHighestNumberOfCalls = (oldCallArithmetic.compareTo(newCallArithmetic) > 0) ? this.phoneWithHighestNumberOfCalls : calls[0];
             }
         }
 
         // System.out.println(sum); // for testing
 
-        return new BigDecimal(sum);
+        return sum;
     }
 
     // V ramci aplikace se hovori o nejakem souboru, ktery ale neni definovan. Prozatim uzit defaultni soubor --> spousteno s argumentem "calculator.csv"
     public static void main(String[] args) {
         String line;
-        HashMap<String, double[]> listOfTelephones = new HashMap<>();
+        HashMap<String, BigDecimal[]> listOfTelephones = new HashMap<>();
         TelephoneBillCalculatorImpl telephoneBillCalculator = new TelephoneBillCalculatorImpl(listOfTelephones);
 
         try {
@@ -149,11 +151,11 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             for (String key : listOfTelephones.keySet()) {
                 if (key.equals(telephoneBillCalculator.phoneWithHighestNumberOfCalls)) {
                     listOfTelephones.computeIfPresent(key, (k, v) -> {
-                        v[1] = 0.0;
+                        v[1] = BigDecimal.valueOf(0.0);
                         return v;
                     });
                 }
-                System.out.println(key + " >> number of calls: " + (int) listOfTelephones.get(key)[0] + ", total sum: " + listOfTelephones.get(key)[1]);
+                System.out.println(key + " >> number of calls: " + listOfTelephones.get(key)[0].intValue() + ", total sum: " + listOfTelephones.get(key)[1]);
             }
 
         } catch (IOException e) {
