@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 // Vstup metody bude splnovat nize uvedena kriteria
 /*
@@ -38,12 +40,25 @@ import java.time.temporal.ChronoUnit;
 
     • V rámci promo akce operátora dále platí, že hovory na nejčastěji volané číslo v rámci výpisu nebudou zpoplatněny.
     V případě, že by výpis obsahoval dvě nebo více takových čísel, zpoplatněny nebudou hovory na číslo s aritmeticky nejvyšší hodnotou.
+
+    Zde me napada reseni ukladani telefonnich cisel do databaze, ziskavani pomoci getByPhoneNumber, aktualizace jeho plateb a ukladani poctu vyskytu v CSV souboru.
+    Jednodussi by to ale v tomto pripade bylo asi resit pres some multidimensional associative array --> {+420777666555 -> {numOfCalls: 6, summary: 24.5}, +420777555666 -> {numOfCalls: 3, summary: 12.2}}
+    Java asociativni pole nepodporuje
+
+    Výsledek vaší práce umístěte do repository ve některém z veřejných úložišť zdrojových kódů (např. GitHub) a zašlete nám na něj odkaz.
+    Repository by mělo obsahovat veškeré zdrojové kódy a pomocné soubory pro sestavení technického modulu plus automatické testy.
  */
 
 public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     public static final double BASIC_CALL_TAX = 1;
     public static final double OUT_OF_BASIC_INTERVAL_CALL_TAX = 0.5;
     public static final double MORE_THAN_FIVE_MINUTES_CALL_TAX = 0.2;
+
+    private final Map<String, double[]> listOfTelephones;
+
+    public TelephoneBillCalculatorImpl(HashMap<String, double[]> map) {
+        listOfTelephones = map;
+    }
 
     // 4 varianty 1) zapocne a skonci mimo hlavni tarif ++ 2) zapocne a skonci v hlavnim tarifu ++ 3) zapocne mimo tarif a skonci v nem ++ 4) zapocne v tarifu a skonci mimo nej
     private double getBasicSumOfBill(LocalDateTime callBegin, LocalDateTime callEnd, long minutes) {
@@ -86,6 +101,18 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             sum = getBasicSumOfBill(callBegin, callEnd, minutes);
         }
 
+        // TODO zde se prirazuji hodnoty k telefonnimu cislu --> {"420777666555" -> {1, 245.5}} --> {"PHONE_NUMBER" -> {NUMBER_OF_CALLS, SUM_OF_BILL}}
+        // TODO uchovavat si i v globalni promene i cislo telefonu a maximalni hodnotu jeho sumy?
+        if (this.listOfTelephones.get(calls[0]) == null) {
+            double[] callInfo = {1.0, sum};
+            this.listOfTelephones.put(calls[0], callInfo);
+        } else {
+            double[] callInfo = this.listOfTelephones.get(calls[0]);
+            callInfo[0] += 1;
+            callInfo[1] += sum;
+            this.listOfTelephones.put(calls[0], callInfo);
+        }
+
         System.out.println(sum);
 
         return new BigDecimal(sum);
@@ -94,7 +121,8 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     // V ramci aplikace se hovori o nejakem souboru, ktery ale neni definovan. Prozatim uzit defaultni soubor --> spousteno s argumentem "calculator.csv"
     public static void main(String[] args) {
         String line = "";
-        TelephoneBillCalculatorImpl telephoneBillCalculator = new TelephoneBillCalculatorImpl();
+        HashMap<String, double[]> listOfTelephones = new HashMap<String, double[]>();
+        TelephoneBillCalculatorImpl telephoneBillCalculator = new TelephoneBillCalculatorImpl(listOfTelephones);
 
         try {
             BufferedReader br = new BufferedReader(new FileReader(args[0]));
@@ -102,7 +130,10 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
                 telephoneBillCalculator.calculate(line);
             }
 
-            // TODO ma to vystup metody --> zde tedy provest vypis jednotlivych cisel s jejich sazbou hovoru
+            // zde provest vypis jednotlivych cisel s jejich sazbou hovoru + nastaveni sazby u nejcasteji volaneho cisla na nulu
+            for (String key : listOfTelephones.keySet()) {
+                System.out.println(key + " >> number of calls: " + (int) listOfTelephones.get(key)[0] + ", total sum: " + listOfTelephones.get(key)[1]);
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
