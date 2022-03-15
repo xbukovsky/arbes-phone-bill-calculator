@@ -45,6 +45,8 @@ import java.util.Map;
     Jednodussi by to ale v tomto pripade bylo asi resit pres some multidimensional associative array --> {+420777666555 -> {numOfCalls: 6, summary: 24.5}, +420777555666 -> {numOfCalls: 3, summary: 12.2}}
     Java asociativni pole nepodporuje
 
+    JAK ZDE chapat aritmeticky nejvyssi hodnotu? Aritmeticky nejvyssi hodnotu samotneho telefonniho cisla, nebo poctu volani vuci sazbe za hovory? Prvotne pracovano s telefonnim cislem, pote zmeneno na pocet hovoru vuci castce za hovor
+
     Výsledek vaší práce umístěte do repository ve některém z veřejných úložišť zdrojových kódů (např. GitHub) a zašlete nám na něj odkaz.
     Repository by mělo obsahovat veškeré zdrojové kódy a pomocné soubory pro sestavení technického modulu plus automatické testy.
  */
@@ -54,7 +56,9 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     public static final double OUT_OF_BASIC_INTERVAL_CALL_TAX = 0.5;
     public static final double MORE_THAN_FIVE_MINUTES_CALL_TAX = 0.2;
 
+    // listOfTelephones --> String s telefonnim cislem + double[] array, kde v [0] je pocet hovoru a v [1] je suma za hovory
     private final Map<String, double[]> listOfTelephones;
+    private String phoneWithHighestNumberOfCalls;
 
     public TelephoneBillCalculatorImpl(HashMap<String, double[]> map) {
         listOfTelephones = map;
@@ -76,7 +80,7 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
     }
 
     public BigDecimal calculate (String phoneLog) {
-        double sum = 0.0;
+        double sum;
 
         String[] calls = phoneLog.split(",");
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
@@ -101,27 +105,38 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
             sum = getBasicSumOfBill(callBegin, callEnd, minutes);
         }
 
-        // TODO zde se prirazuji hodnoty k telefonnimu cislu --> {"420777666555" -> {1, 245.5}} --> {"PHONE_NUMBER" -> {NUMBER_OF_CALLS, SUM_OF_BILL}}
-        // TODO uchovavat si i v globalni promene i cislo telefonu a maximalni hodnotu jeho sumy?
+        // zde se prirazuji hodnoty k telefonnimu cislu --> {"420777666555" -> {1, 245.5}} --> {"PHONE_NUMBER" -> {NUMBER_OF_CALLS, SUM_OF_BILL}}
+        // uchovavat si i v globalni promene i cislo telefonu a maximalni hodnotu jeho sumy? --> neradi se dle sumy, ale dle poctu volani. Prvni if tedy pouze inicializuje prvni volane cislo.
+        // porovnavat tedy pouze pocet hovoru a v pripade, ze bude pocet hovoru stejny, tak zohlednit aritmeticky nejvyssi hodnotu
         if (this.listOfTelephones.get(calls[0]) == null) {
             double[] callInfo = {1.0, sum};
             this.listOfTelephones.put(calls[0], callInfo);
+            this.phoneWithHighestNumberOfCalls = (this.phoneWithHighestNumberOfCalls == null) ? calls[0] : this.phoneWithHighestNumberOfCalls;
         } else {
             double[] callInfo = this.listOfTelephones.get(calls[0]);
+            double[] highestNumOfCallsInfo = this.listOfTelephones.get(this.phoneWithHighestNumberOfCalls);
             callInfo[0] += 1;
             callInfo[1] += sum;
             this.listOfTelephones.put(calls[0], callInfo);
+
+            if ((int) highestNumOfCallsInfo[0] < (int) callInfo[0]) {
+                this.phoneWithHighestNumberOfCalls = calls[0];
+            } else if ((int) highestNumOfCallsInfo[0] == (int) callInfo[0]) { // stejny pocet hovoru, aritmeticky nejvyssi hodnota (castka/pocet_hovoru)
+                double oldCallArithmetic = highestNumOfCallsInfo[1] / highestNumOfCallsInfo[0];
+                double newCallArithmetic = callInfo[1] / callInfo[0];
+                this.phoneWithHighestNumberOfCalls = (Double.compare(oldCallArithmetic, newCallArithmetic) < 0) ? calls[0] : this.phoneWithHighestNumberOfCalls;
+            }
         }
 
-        System.out.println(sum);
+        // System.out.println(sum); // for testing
 
         return new BigDecimal(sum);
     }
 
     // V ramci aplikace se hovori o nejakem souboru, ktery ale neni definovan. Prozatim uzit defaultni soubor --> spousteno s argumentem "calculator.csv"
     public static void main(String[] args) {
-        String line = "";
-        HashMap<String, double[]> listOfTelephones = new HashMap<String, double[]>();
+        String line;
+        HashMap<String, double[]> listOfTelephones = new HashMap<>();
         TelephoneBillCalculatorImpl telephoneBillCalculator = new TelephoneBillCalculatorImpl(listOfTelephones);
 
         try {
@@ -132,6 +147,12 @@ public class TelephoneBillCalculatorImpl implements TelephoneBillCalculator {
 
             // zde provest vypis jednotlivych cisel s jejich sazbou hovoru + nastaveni sazby u nejcasteji volaneho cisla na nulu
             for (String key : listOfTelephones.keySet()) {
+                if (key.equals(telephoneBillCalculator.phoneWithHighestNumberOfCalls)) {
+                    listOfTelephones.computeIfPresent(key, (k, v) -> {
+                        v[1] = 0.0;
+                        return v;
+                    });
+                }
                 System.out.println(key + " >> number of calls: " + (int) listOfTelephones.get(key)[0] + ", total sum: " + listOfTelephones.get(key)[1]);
             }
 
